@@ -33,10 +33,41 @@ import { DraggableItem } from './components/DraggableItem';
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('list');
   const [data, setData] = useState<InsuranceData>(EMPTY_INSURANCE);
-  const [layouts, setLayouts] = useState<Record<string, PrintableElement[]>>({
-    print_new: DEFAULT_ELEMENTS_NEW,
-    print_old: DEFAULT_ELEMENTS_OLD
+  const [layouts, setLayouts] = useState<Record<string, PrintableElement[]>>(() => {
+    const defaultLayouts = { print_new: DEFAULT_ELEMENTS_NEW, print_old: DEFAULT_ELEMENTS_OLD };
+    try {
+      const saved = localStorage.getItem('insurance_print_layouts');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const merged: Record<string, PrintableElement[]> = { print_new: [], print_old: [] };
+        
+        const processLayout = (defaults: PrintableElement[], savedItems: PrintableElement[]) => {
+          if (!savedItems || !Array.isArray(savedItems)) return defaults;
+          const result = defaults.map(def => {
+            const found = savedItems.find((s: PrintableElement) => s.id === def.id && !s.isCustom);
+            return found ? { ...def, x: found.x, y: found.y, fontSize: found.fontSize, isVisible: found.isVisible, size: found.size } : def;
+          });
+          const customElements = savedItems.filter((s: PrintableElement) => s.isCustom);
+          return [...result, ...customElements];
+        };
+
+        merged.print_new = processLayout(DEFAULT_ELEMENTS_NEW, parsed.print_new);
+        merged.print_old = processLayout(DEFAULT_ELEMENTS_OLD, parsed.print_old);
+        return merged;
+      }
+    } catch (e) {
+      console.error('Failed to load layouts:', e);
+    }
+    return defaultLayouts;
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('insurance_print_layouts', JSON.stringify(layouts));
+    } catch (e) {
+      console.error('Failed to save layouts:', e);
+    }
+  }, [layouts]);
   
   const activeLayoutKey = activeTab === 'list' ? 'print_new' : activeTab;
   const elements = layouts[activeLayoutKey] || DEFAULT_ELEMENTS_NEW;
